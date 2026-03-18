@@ -335,7 +335,7 @@ function showPasswordForm(id, message) {
     loadingEl.innerHTML = `
         <div class="password-form">
             <i class="bi bi-lock-fill text-warning"></i>
-            <span class="text-muted small">${escapeHtml(message)}</span>
+            <span style="color:var(--text-primary);font-size:0.82rem;">${escapeHtml(message)}</span>
             <input type="password" class="password-input" id="pwInput-${id}" placeholder="Password"
                    onkeydown="if(event.key==='Enter') retryWithPassword(${id})">
             <button class="btn-password-submit" onclick="retryWithPassword(${id})">
