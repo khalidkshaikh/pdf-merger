@@ -1400,3 +1400,31 @@ a { text-decoration: none; color: inherit; }
 }
 
 .btn-pdf-to-jpg-lg:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ===========================
+   Upload Toast Notification
+=========================== */
+.upload-toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(16px);
+    background: rgba(16, 185, 129, 0.95);
+    color: #fff;
+    padding: 10px 22px;
+    border-radius: 50px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.upload-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}

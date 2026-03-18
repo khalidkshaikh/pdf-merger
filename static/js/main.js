@@ -128,6 +128,12 @@ function handleFiles(newFiles) {
     wfStep2.classList.add('active');
     wfLine1.classList.add('active');
     updateVisibility();
+
+    // Auto-scroll to selector section and show toast confirmation
+    setTimeout(() => {
+        pageSelectorSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    showToast(`${accepted.length} file${accepted.length !== 1 ? 's' : ''} added`);
 }
 
 function removeFile(id) {
@@ -996,6 +1002,21 @@ document.addEventListener('keydown', async (e) => {
 // ===========================
 // Utilities
 // ===========================
+function showToast(message) {
+    const existing = document.getElementById('uploadToast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'uploadToast';
+    toast.className = 'upload-toast';
+    toast.innerHTML = `<i class="bi bi-check-circle-fill me-2"></i>${escapeHtml(message)}`;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400);
+    }, 2500);
+}
+
 function escapeHtml(str) {
     const d = document.createElement('div');
     d.appendChild(document.createTextNode(str));
