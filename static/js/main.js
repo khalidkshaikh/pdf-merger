@@ -1,6 +1,6 @@
 // ===========================
 // PDF Merger - Main JS
-// Features: merge, split, rotate, drag-reorder, passwords, transparency, custom filename
+// Features: merge, split, drag-reorder, passwords, transparency, custom filename, SVG/AVIF support
 // ===========================
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -14,15 +14,17 @@ let pageSelections = {}; // {id: Set<number>}  1-indexed
 let pageCounts = {};     // {id: number}
 let pdfDocs = {};        // {id: pdfjsDoc}
 let imageUrls = {};      // {id: objectURL}
-let pageRotations = {};  // {id: {pageNum: degrees}}
 let pdfPasswords = {};   // {id: password string}
 let nextId = 0;
 let dragSrcId = null;
 let isDraggingFromHandle = false;
 
-const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/tiff',
-    'image/pjpeg', 'image/x-png', 'image/x-bmp', 'image/x-ms-bmp', 'image/x-windows-bmp']);
-const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff', 'tif']);
+const IMAGE_TYPES = new Set([
+    'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp',
+    'image/svg+xml', 'image/avif', 'image/tiff', 'image/x-icon', 'image/vnd.microsoft.icon',
+    'image/pjpeg', 'image/x-png', 'image/x-bmp', 'image/x-ms-bmp', 'image/x-windows-bmp'
+]);
+const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg', 'avif', 'tiff', 'tif', 'ico']);
 
 function isImageFile(file) {
     if (IMAGE_TYPES.has(file.type)) return true;
@@ -82,15 +84,17 @@ dropZone.addEventListener('drop', (e) => {
     handleFiles(Array.from(e.dataTransfer.files));
 });
 
-// Reset drag handle flag on mouseup anywhere
-document.addEventListener('mouseup', () => { isDraggingFromHandle = false; });
+// Reset drag state on global mouseup
+document.addEventListener('mouseup', () => {
+    isDraggingFromHandle = false;
+    document.querySelectorAll('.pdf-selector-card').forEach(c => { c.draggable = false; });
+});
 
 clearAllFilesBtn.addEventListener('click', () => {
     files = [];
     pageSelections = {};
     pageCounts = {};
     pdfDocs = {};
-    pageRotations = {};
     pdfPasswords = {};
     Object.values(imageUrls).forEach(url => URL.revokeObjectURL(url));
     imageUrls = {};
@@ -127,7 +131,6 @@ function removeFile(id) {
     delete pageSelections[id];
     delete pageCounts[id];
     delete pdfDocs[id];
-    delete pageRotations[id];
     delete pdfPasswords[id];
     if (imageUrls[id]) { URL.revokeObjectURL(imageUrls[id]); delete imageUrls[id]; }
     document.getElementById(`pdfCard-${id}`)?.remove();
@@ -157,6 +160,8 @@ function createAndLoadCard(id) {
     const card = document.createElement('div');
     card.className = 'pdf-selector-card';
     card.id = `pdfCard-${id}`;
+    card.draggable = false; // enabled only on handle mousedown
+
     card.innerHTML = `
         <div class="pdf-selector-card-header">
             <div class="drag-handle" title="Drag to reorder">
@@ -205,7 +210,10 @@ function createAndLoadCard(id) {
 function addDragEvents(card, id) {
     const handle = card.querySelector('.drag-handle');
 
-    handle.addEventListener('mousedown', () => { isDraggingFromHandle = true; });
+    handle.addEventListener('mousedown', () => {
+        isDraggingFromHandle = true;
+        card.draggable = true;
+    });
 
     card.addEventListener('dragstart', e => {
         if (!isDraggingFromHandle) { e.preventDefault(); return; }
@@ -216,6 +224,7 @@ function addDragEvents(card, id) {
     });
 
     card.addEventListener('dragend', () => {
+        card.draggable = false;
         card.classList.remove('dragging');
         document.querySelectorAll('.pdf-selector-card').forEach(c => c.classList.remove('drag-over'));
         dragSrcId = null;
@@ -417,10 +426,12 @@ async function buildThumb(fileId, pageNum, page) {
 
 function buildImageThumb(fileId, img) {
     const targetW = 120;
-    const scale = targetW / img.naturalWidth;
+    const nW = img.naturalWidth  || 794;
+    const nH = img.naturalHeight || 1123;
+    const scale = targetW / nW;
     const canvas = document.createElement('canvas');
     canvas.width = targetW;
-    canvas.height = Math.round(img.naturalHeight * scale);
+    canvas.height = Math.round(nH * scale);
     canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
     return makeThumbWrapper(fileId, 1, canvas, null);
 }
@@ -440,14 +451,11 @@ function makeThumbWrapper(fileId, pageNum, canvas, labelNum) {
         <button class="page-zoom-btn" title="Enlarge preview">
             <i class="bi bi-arrows-fullscreen"></i>
         </button>
-        <button class="page-rotate-btn" title="Rotate 90°">
-            <i class="bi bi-arrow-clockwise"></i>
-        </button>
         ${labelNum ? `<div class="page-thumb-number">${pageNum}</div>` : ''}
     `);
 
     wrapper.addEventListener('click', (e) => {
-        if (!e.target.closest('.page-zoom-btn') && !e.target.closest('.page-rotate-btn')) {
+        if (!e.target.closest('.page-zoom-btn')) {
             togglePage(fileId, pageNum, wrapper);
         }
     });
@@ -457,37 +465,7 @@ function makeThumbWrapper(fileId, pageNum, canvas, labelNum) {
         openModal(fileId, pageNum);
     });
 
-    wrapper.querySelector('.page-rotate-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        rotateThumb(fileId, pageNum, wrapper);
-    });
-
     return wrapper;
-}
-
-// ===========================
-// Rotate Thumbnail
-// ===========================
-function rotateThumb(fileId, pageNum, wrapper) {
-    if (!pageRotations[fileId]) pageRotations[fileId] = {};
-    const current = pageRotations[fileId][pageNum] || 0;
-    const rotation = (current + 90) % 360;
-    pageRotations[fileId][pageNum] = rotation;
-
-    const canvas = wrapper.querySelector('canvas');
-    canvas.style.transform = `rotate(${rotation}deg)`;
-
-    // Adjust margins so the canvas doesn't overflow its cell on 90°/270° flips
-    if (rotation === 90 || rotation === 270) {
-        const diff = (canvas.offsetWidth - canvas.offsetHeight) / 2;
-        canvas.style.marginTop    = `${diff}px`;
-        canvas.style.marginBottom = `${diff}px`;
-        canvas.style.marginLeft   = `-${diff}px`;
-        canvas.style.marginRight  = `-${diff}px`;
-    } else {
-        canvas.style.marginTop = canvas.style.marginBottom =
-        canvas.style.marginLeft = canvas.style.marginRight = '';
-    }
 }
 
 // ===========================
@@ -536,10 +514,18 @@ function updateSelectionCounter(fileId) {
 function updateMergeBar() {
     let totalPages = 0;
     files.forEach(f => { totalPages += pageSelections[f.id]?.size || 0; });
-    mergeBtn.disabled = totalPages === 0;
-    splitBtn.disabled = totalPages === 0;
+    const hasContent = totalPages > 0;
+    mergeBtn.disabled = !hasContent;
+    splitBtn.disabled = !hasContent;
     selectionSummary.textContent =
         `${totalPages} page${totalPages !== 1 ? 's' : ''} selected from ${files.length} file${files.length !== 1 ? 's' : ''}`;
+
+    // Dynamic button label: "Download" for single file, "Merge & Download" for multiple
+    if (!mergeBtn.querySelector('.spinner-border')) {
+        mergeBtn.innerHTML = files.length <= 1
+            ? `<i class="bi bi-download me-2"></i>Download`
+            : `<i class="bi bi-file-earmark-zip me-2"></i>Merge &amp; Download`;
+    }
 }
 
 function updateVisibility() {
@@ -578,45 +564,37 @@ function getFilename(suffix) {
 
 // ===========================
 // Core: Add one file's pages into a PDFDocument
-// (shared by Merge and Split)
+// Shared by Merge and Split
 // ===========================
 async function addFileToPdf(mergedPdf, fileObj, selectedPageNums) {
     if (fileObj.isImage) {
-        // Load image
         const img = await new Promise((resolve, reject) => {
             const i = new Image();
             i.onload  = () => resolve(i);
             i.onerror = () => reject(new Error(`Failed to load image: ${fileObj.name}`));
             i.src = imageUrls[fileObj.id] || URL.createObjectURL(fileObj.file);
         });
-        if (!img.naturalWidth || !img.naturalHeight) {
-            throw new Error(`Image has zero dimensions: ${fileObj.name}`);
-        }
 
-        const rotation  = pageRotations[fileObj.id]?.[1] || 0;
-        const isFlipped = rotation === 90 || rotation === 270;
+        // SVGs may have naturalWidth=0 — fall back to A4 dimensions
+        const nW = img.naturalWidth  || 595;
+        const nH = img.naturalHeight || 842;
 
-        // Draw on canvas with rotation applied
         const canvas  = document.createElement('canvas');
-        canvas.width  = isFlipped ? img.naturalHeight : img.naturalWidth;
-        canvas.height = isFlipped ? img.naturalWidth  : img.naturalHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((rotation * Math.PI) / 180);
-        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+        canvas.width  = nW;
+        canvas.height = nH;
+        canvas.getContext('2d').drawImage(img, 0, 0, nW, nH);
 
-        // Try PNG (preserves transparency), fall back to JPEG on error
+        // Try PNG first (preserves transparency), fall back to JPEG
         let embeddedImage;
         try {
             const pngBytes = await canvasToBytes(canvas, 'image/png');
             embeddedImage  = await mergedPdf.embedPng(pngBytes);
         } catch {
-            // Redraw with white bg for JPEG
             const jpgCanvas = document.createElement('canvas');
-            jpgCanvas.width = canvas.width; jpgCanvas.height = canvas.height;
+            jpgCanvas.width = nW; jpgCanvas.height = nH;
             const jCtx = jpgCanvas.getContext('2d');
             jCtx.fillStyle = '#ffffff';
-            jCtx.fillRect(0, 0, jpgCanvas.width, jpgCanvas.height);
+            jCtx.fillRect(0, 0, nW, nH);
             jCtx.drawImage(canvas, 0, 0);
             const jpgBytes = await canvasToBytes(jpgCanvas, 'image/jpeg', 0.95);
             embeddedImage  = await mergedPdf.embedJpg(jpgBytes);
@@ -634,25 +612,18 @@ async function addFileToPdf(mergedPdf, fileObj, selectedPageNums) {
             fileObj.arrayBuffer = arrayBuffer;
         }
 
-        const loadOpts = { ignoreEncryption: true };
-        if (pdfPasswords[fileObj.id]) loadOpts.password = pdfPasswords[fileObj.id];
+        // If password is stored, use it to decrypt — otherwise use ignoreEncryption
+        const loadOpts = pdfPasswords[fileObj.id]
+            ? { password: pdfPasswords[fileObj.id] }
+            : { ignoreEncryption: true };
 
         const sourcePdf  = await PDFLib.PDFDocument.load(arrayBuffer, loadOpts);
         const totalPages = sourcePdf.getPageCount();
 
-        const sortedPages  = Array.from(selectedPageNums).sort((a, b) => a - b);
-        const pageIndices  = sortedPages.filter(p => p >= 1 && p <= totalPages).map(p => p - 1);
-        const copiedPages  = await mergedPdf.copyPages(sourcePdf, pageIndices);
-
-        copiedPages.forEach((page, i) => {
-            const pageNum           = sortedPages[i];
-            const additionalRotation = pageRotations[fileObj.id]?.[pageNum] || 0;
-            if (additionalRotation) {
-                const existing = page.getRotation().angle;
-                page.setRotation(PDFLib.degrees((existing + additionalRotation) % 360));
-            }
-            mergedPdf.addPage(page);
-        });
+        const sortedPages = Array.from(selectedPageNums).sort((a, b) => a - b);
+        const pageIndices = sortedPages.filter(p => p >= 1 && p <= totalPages).map(p => p - 1);
+        const copiedPages = await mergedPdf.copyPages(sourcePdf, pageIndices);
+        copiedPages.forEach(page => mergedPdf.addPage(page));
     }
 }
 
@@ -663,10 +634,14 @@ mergeBtn.addEventListener('click', async () => {
     const totalSelected = files.reduce((s, f) => s + (pageSelections[f.id]?.size || 0), 0);
     if (totalSelected === 0) return;
 
-    const originalHtml = mergeBtn.innerHTML;
+    const isSingle = files.length <= 1;
+    const originalHtml = isSingle
+        ? `<i class="bi bi-download me-2"></i>Download`
+        : `<i class="bi bi-file-earmark-zip me-2"></i>Merge &amp; Download`;
+
     mergeBtn.disabled  = true;
     splitBtn.disabled  = true;
-    mergeBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>Merging...`;
+    mergeBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>${isSingle ? 'Saving...' : 'Merging...'}`;
 
     try {
         const mergedPdf = await PDFLib.PDFDocument.create();
@@ -677,7 +652,7 @@ mergeBtn.addEventListener('click', async () => {
             await addFileToPdf(mergedPdf, fileObj, sel);
         }
 
-        if (mergedPdf.getPageCount() === 0) throw new Error('No pages selected to merge');
+        if (mergedPdf.getPageCount() === 0) throw new Error('No pages selected');
 
         downloadPdf(await mergedPdf.save(), getFilename());
 
@@ -693,7 +668,7 @@ mergeBtn.addEventListener('click', async () => {
         }, 3000);
 
     } catch (err) {
-        alert('Merge error: ' + (err.message || String(err)));
+        alert('Error: ' + (err.message || String(err)));
         mergeBtn.innerHTML = originalHtml;
         mergeBtn.disabled  = false;
         splitBtn.disabled  = false;
@@ -748,8 +723,8 @@ splitBtn.addEventListener('click', async () => {
 // ===========================
 // Page Preview Modal
 // ===========================
-let modalFileId   = null;
-let modalPageNum  = null;
+let modalFileId    = null;
+let modalPageNum   = null;
 let modalRendering = false;
 
 async function openModal(fileId, pageNum) {
@@ -791,11 +766,13 @@ async function renderModalPage() {
             img.src = imageUrls[modalFileId];
             if (!img.complete) await new Promise(r => img.onload = r);
 
+            const nW    = img.naturalWidth  || 794;
+            const nH    = img.naturalHeight || 1123;
             const maxW  = window.innerWidth  * 0.78;
             const maxH  = window.innerHeight * 0.72;
-            const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
-            modalCanvas.width  = Math.round(img.naturalWidth  * scale);
-            modalCanvas.height = Math.round(img.naturalHeight * scale);
+            const scale = Math.min(maxW / nW, maxH / nH, 1);
+            modalCanvas.width  = Math.round(nW * scale);
+            modalCanvas.height = Math.round(nH * scale);
 
             const ctx = modalCanvas.getContext('2d');
             ctx.clearRect(0, 0, modalCanvas.width, modalCanvas.height);
@@ -819,12 +796,9 @@ async function renderModalPage() {
             await page.render({ canvasContext: ctx, viewport: sv }).promise;
         }
 
-        // Show rotation as CSS hint in the modal
-        const rotation = pageRotations[modalFileId]?.[modalPageNum] || 0;
-        modalCanvas.style.transform = rotation ? `rotate(${rotation}deg)` : '';
-
-        modalLoading.style.display = 'none';
-        modalCanvas.style.opacity  = '1';
+        modalCanvas.style.transform = '';
+        modalLoading.style.display  = 'none';
+        modalCanvas.style.opacity   = '1';
     } finally {
         modalRendering = false;
     }
