@@ -393,6 +393,11 @@ a { text-decoration: none; color: inherit; }
     flex-shrink: 0;
 }
 
+.img-card-icon {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+}
+
 .pdf-card-name {
     font-size: 0.93rem;
     font-weight: 600;
