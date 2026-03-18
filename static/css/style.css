@@ -1265,3 +1265,138 @@ a { text-decoration: none; color: inherit; }
     opacity: 0.9;
     box-shadow: 0 4px 12px rgba(99,102,241,0.35);
 }
+
+/* ===========================
+   File Rotate Button (in card header)
+=========================== */
+.btn-file-rotate {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    transition: var(--transition);
+    white-space: nowrap;
+    font-family: 'Inter', sans-serif;
+}
+
+.btn-file-rotate:hover {
+    color: var(--primary-light);
+    border-color: var(--primary);
+}
+
+.btn-file-rotate.active {
+    color: var(--primary-light);
+    border-color: var(--primary);
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.rotate-deg-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+/* ===========================
+   Output Options Row
+=========================== */
+.output-options-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 14px 20px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 16px;
+}
+
+.output-opts-label {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+    margin-right: 2px;
+}
+
+.output-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.output-chip:hover {
+    border-color: rgba(99,102,241,0.4);
+    color: var(--text-primary);
+}
+
+.output-chip input[type="checkbox"] { display: none; }
+
+.output-chip:has(input[type="checkbox"]:checked) {
+    border-color: var(--primary);
+    color: var(--primary-light);
+    background: rgba(99, 102, 241, 0.12);
+}
+
+.output-chip-text-input {
+    padding: 5px 14px 5px 12px;
+    cursor: default;
+    flex-shrink: 1;
+}
+
+.output-chip-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    font-family: 'Inter', sans-serif;
+    width: 155px;
+    min-width: 60px;
+}
+
+.output-chip-input::placeholder { color: var(--text-muted); opacity: 0.7; }
+
+/* ===========================
+   Export JPG Button
+=========================== */
+.btn-pdf-to-jpg-lg {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.6rem 1.4rem;
+    background: transparent;
+    border: 1.5px solid rgba(20, 184, 166, 0.45);
+    color: #5eead4;
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+    font-family: 'Inter', sans-serif;
+}
+
+.btn-pdf-to-jpg-lg:hover:not(:disabled) {
+    background: rgba(20, 184, 166, 0.1);
+    border-color: #14b8a6;
+    box-shadow: 0 0 16px rgba(20, 184, 166, 0.2);
+}
+
+.btn-pdf-to-jpg-lg:disabled { opacity: 0.4; cursor: not-allowed; }

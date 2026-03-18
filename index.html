@@ -182,6 +182,29 @@
                         <!-- PDF Cards injected by JS -->
                         <div id="pdfCardsContainer"></div>
 
+                        <!-- Output Options -->
+                        <div class="output-options-row" id="outputOptionsRow">
+                            <span class="output-opts-label">Output:</span>
+
+                            <!-- Page Numbers -->
+                            <label class="output-chip" title="Stamp page numbers at the bottom of every page">
+                                <input type="checkbox" id="optPageNumbers">
+                                <i class="bi bi-list-ol"></i><span>Page Numbers</span>
+                            </label>
+
+                            <!-- Watermark -->
+                            <div class="output-chip output-chip-text-input" title="Add diagonal watermark text to each page">
+                                <i class="bi bi-droplet-fill"></i>
+                                <input type="text" id="optWatermarkText" class="output-chip-input" placeholder="Watermark text..." maxlength="60">
+                            </div>
+
+                            <!-- Compress -->
+                            <label class="output-chip" title="Re-renders pages as JPEG — reduces file size, converts vectors to raster">
+                                <input type="checkbox" id="optCompress">
+                                <i class="bi bi-file-zip"></i><span>Compress</span>
+                            </label>
+                        </div>
+
                         <!-- Sticky Merge Bar -->
                         <div class="merge-bar" id="mergeBar">
                             <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
@@ -198,6 +221,10 @@
                                         <input type="text" id="filenameInput" class="merge-filename-input" placeholder="merged" value="merged" maxlength="100">
                                         <span class="merge-filename-ext">.pdf</span>
                                     </div>
+                                    <!-- Export JPG button -->
+                                    <button class="btn-pdf-to-jpg-lg" id="pdfToJpgBtn" disabled>
+                                        <i class="bi bi-file-image me-2"></i>Export JPG
+                                    </button>
                                     <!-- Split button -->
                                     <button class="btn-split-lg" id="splitBtn" disabled>
                                         <i class="bi bi-scissors me-2"></i>Split Files
