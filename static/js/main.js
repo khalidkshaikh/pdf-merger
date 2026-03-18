@@ -428,21 +428,35 @@ mergeBtn.addEventListener('click', async () => {
             if (!selectedPages || selectedPages.size === 0) continue;
 
             if (fileObj.isImage) {
-                // Always convert via canvas — normalizes all PNG variants, WebP, GIF, BMP, etc.
-                const img = new Image();
-                img.src = imageUrls[fileObj.id];
-                if (!img.complete) await new Promise(r => img.onload = r);
+                // Load image with proper error handling
+                const img = await new Promise((resolve, reject) => {
+                    const i = new Image();
+                    i.onload = () => resolve(i);
+                    i.onerror = () => reject(new Error(`Failed to load image: ${fileObj.name}`));
+                    i.src = imageUrls[fileObj.id] || URL.createObjectURL(fileObj.file);
+                });
+                if (!img.naturalWidth || !img.naturalHeight) {
+                    throw new Error(`Image has zero dimensions: ${fileObj.name}`);
+                }
+                // Draw onto canvas (fill white first to flatten any transparency)
                 const canvas = document.createElement('canvas');
                 canvas.width = img.naturalWidth;
                 canvas.height = img.naturalHeight;
-                canvas.getContext('2d').drawImage(img, 0, 0);
-                const pngBuffer = await new Promise((res, rej) =>
-                    canvas.toBlob(
-                        b => b ? b.arrayBuffer().then(res) : rej(new Error('Canvas conversion failed')),
-                        'image/png'
-                    )
-                );
-                const embeddedImage = await mergedPdf.embedPng(new Uint8Array(pngBuffer));
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+                // Export as JPEG — avoids pdf-lib's PNG parser quirks entirely
+                const jpgBytes = await new Promise((resolve, reject) => {
+                    canvas.toBlob(blob => {
+                        if (!blob) return reject(new Error('Canvas export failed'));
+                        const reader = new FileReader();
+                        reader.onload = e => resolve(new Uint8Array(e.target.result));
+                        reader.onerror = () => reject(new Error('FileReader failed'));
+                        reader.readAsArrayBuffer(blob);
+                    }, 'image/jpeg', 0.95);
+                });
+                const embeddedImage = await mergedPdf.embedJpg(jpgBytes);
                 const { width, height } = embeddedImage;
                 const page = mergedPdf.addPage([width, height]);
                 page.drawImage(embeddedImage, { x: 0, y: 0, width, height });
