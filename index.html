@@ -171,7 +171,7 @@
                                     <i class="bi bi-layout-wtf me-2"></i>Select Pages to Include
                                 </h3>
                                 <p class="selector-subtitle">
-                                    Click thumbnails to include or exclude pages. All pages are pre-selected by default.
+                                    Click thumbnails to select/deselect pages. Drag the <i class="bi bi-grip-vertical"></i> handle to reorder files.
                                 </p>
                             </div>
                             <button class="btn btn-outline-danger btn-sm" id="clearAllFilesBtn">
@@ -191,9 +191,22 @@
                                         <i class="bi bi-info-circle me-1"></i>Pages merged in PDF order shown above
                                     </p>
                                 </div>
-                                <button class="btn-merge-lg" id="mergeBtn" disabled>
-                                    <i class="bi bi-file-earmark-zip me-2"></i>Merge &amp; Download
-                                </button>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <!-- Filename input -->
+                                    <div class="merge-filename-wrap">
+                                        <i class="bi bi-pencil-fill merge-filename-icon"></i>
+                                        <input type="text" id="filenameInput" class="merge-filename-input" placeholder="merged" value="merged" maxlength="100">
+                                        <span class="merge-filename-ext">.pdf</span>
+                                    </div>
+                                    <!-- Split button -->
+                                    <button class="btn-split-lg" id="splitBtn" disabled>
+                                        <i class="bi bi-scissors me-2"></i>Split Files
+                                    </button>
+                                    <!-- Merge button -->
+                                    <button class="btn-merge-lg" id="mergeBtn" disabled>
+                                        <i class="bi bi-file-earmark-zip me-2"></i>Merge &amp; Download
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
