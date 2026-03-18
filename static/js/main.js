@@ -18,7 +18,15 @@ let pdfDocs = {};        // {id: pdfjsDoc}  stored for modal re-render
 let imageUrls = {};      // {id: objectURL}  for image previews
 let nextId = 0;
 
-const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/tiff']);
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/tiff',
+    'image/pjpeg', 'image/x-png', 'image/x-bmp', 'image/x-ms-bmp', 'image/x-windows-bmp']);
+const IMAGE_EXTS  = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff', 'tif']);
+
+function isImageFile(file) {
+    if (IMAGE_TYPES.has(file.type)) return true;
+    const ext = file.name.split('.').pop().toLowerCase();
+    return IMAGE_EXTS.has(ext);
+}
 
 // ===========================
 // DOM References
@@ -89,12 +97,12 @@ clearAllFilesBtn.addEventListener('click', () => {
 // File Handling
 // ===========================
 function handleFiles(newFiles) {
-    const accepted = newFiles.filter(f => f.type === 'application/pdf' || IMAGE_TYPES.has(f.type));
+    const accepted = newFiles.filter(f => f.type === 'application/pdf' || isImageFile(f));
     if (!accepted.length) return;
 
     accepted.forEach(file => {
         const id = nextId++;
-        const isImage = IMAGE_TYPES.has(file.type);
+        const isImage = isImageFile(file);
         files.push({ id, file, name: file.name, size: file.size, isImage });
         pageSelections[id] = new Set();
         createAndLoadCard(id);
