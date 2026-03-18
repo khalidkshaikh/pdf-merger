@@ -606,24 +606,58 @@ async function addFileToPdf(mergedPdf, fileObj, selectedPageNums) {
 
     } else {
         // PDF
-        let arrayBuffer = fileObj.arrayBuffer;
-        if (!arrayBuffer) {
-            arrayBuffer = await fileObj.file.arrayBuffer();
-            fileObj.arrayBuffer = arrayBuffer;
-        }
-
-        // If password is stored, use it to decrypt — otherwise use ignoreEncryption
-        const loadOpts = pdfPasswords[fileObj.id]
-            ? { password: pdfPasswords[fileObj.id] }
-            : { ignoreEncryption: true };
-
-        const sourcePdf  = await PDFLib.PDFDocument.load(arrayBuffer, loadOpts);
-        const totalPages = sourcePdf.getPageCount();
-
         const sortedPages = Array.from(selectedPageNums).sort((a, b) => a - b);
-        const pageIndices = sortedPages.filter(p => p >= 1 && p <= totalPages).map(p => p - 1);
-        const copiedPages = await mergedPdf.copyPages(sourcePdf, pageIndices);
-        copiedPages.forEach(page => mergedPdf.addPage(page));
+
+        if (pdfPasswords[fileObj.id]) {
+            // Password-protected: pdf-lib cannot decrypt these reliably.
+            // Use the already-unlocked pdf.js doc to render pages to canvas and embed as images.
+            const pdfDoc = pdfDocs[fileObj.id];
+            if (!pdfDoc) throw new Error(`PDF not loaded: ${fileObj.name}`);
+
+            for (const pageNum of sortedPages) {
+                if (pageNum < 1 || pageNum > pdfDoc.numPages) continue;
+                const page     = await pdfDoc.getPage(pageNum);
+                const viewport = page.getViewport({ scale: 2 }); // 2× for good resolution
+
+                const canvas  = document.createElement('canvas');
+                canvas.width  = Math.round(viewport.width);
+                canvas.height = Math.round(viewport.height);
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+                let embeddedImage;
+                try {
+                    const pngBytes = await canvasToBytes(canvas, 'image/png');
+                    embeddedImage  = await mergedPdf.embedPng(pngBytes);
+                } catch {
+                    const jpgCanvas = document.createElement('canvas');
+                    jpgCanvas.width = canvas.width; jpgCanvas.height = canvas.height;
+                    const jCtx = jpgCanvas.getContext('2d');
+                    jCtx.fillStyle = '#ffffff';
+                    jCtx.fillRect(0, 0, jpgCanvas.width, jpgCanvas.height);
+                    jCtx.drawImage(canvas, 0, 0);
+                    const jpgBytes = await canvasToBytes(jpgCanvas, 'image/jpeg', 0.92);
+                    embeddedImage  = await mergedPdf.embedJpg(jpgBytes);
+                }
+
+                const { width, height } = embeddedImage;
+                const newPage = mergedPdf.addPage([width, height]);
+                newPage.drawImage(embeddedImage, { x: 0, y: 0, width, height });
+            }
+
+        } else {
+            // Unencrypted PDF — copy pages directly via pdf-lib (preserves vector quality)
+            let arrayBuffer = fileObj.arrayBuffer;
+            if (!arrayBuffer) {
+                arrayBuffer = await fileObj.file.arrayBuffer();
+                fileObj.arrayBuffer = arrayBuffer;
+            }
+
+            const sourcePdf   = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+            const totalPages  = sourcePdf.getPageCount();
+            const pageIndices = sortedPages.filter(p => p >= 1 && p <= totalPages).map(p => p - 1);
+            const copiedPages = await mergedPdf.copyPages(sourcePdf, pageIndices);
+            copiedPages.forEach(page => mergedPdf.addPage(page));
+        }
     }
 }
 
