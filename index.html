@@ -19,6 +19,13 @@
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 
     <link rel="stylesheet" href="static/css/style.css">
+    <!-- PWA -->
+    <link rel="manifest" href="/pdf-merger/manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PDFMerge">
+    <link rel="apple-touch-icon" href="/pdf-merger/static/icon.svg">
 </head>
 <body>
 
@@ -51,6 +58,11 @@
                             <i class="bi bi-info-circle me-1"></i>How It Works
                         </a>
                     </li>
+                    <li class="nav-item" id="swBadgeLi" style="display:none">
+                        <span class="sw-offline-badge">
+                            <i class="bi bi-cloud-check-fill me-1"></i>Offline Ready
+                        </span>
+                    </li>
                     <li class="nav-item ms-2">
                         <a class="btn btn-merge" href="#upload-section">
                             <i class="bi bi-plus-lg me-1"></i>Merge PDFs
@@ -75,7 +87,7 @@
             <div class="row justify-content-center text-center">
                 <div class="col-lg-8">
                     <div class="hero-badge mb-4">
-                        <i class="bi bi-shield-check me-2"></i>Secure &amp; Private — Files are processed locally
+                        <i class="bi bi-shield-lock-fill me-2"></i>100% Offline &mdash; Files never leave your device
                     </div>
                     <h1 class="hero-title">
                         Merge PDFs &amp; Images <span class="gradient-text">Your Way</span>
@@ -113,6 +125,12 @@
                     <div class="stat-pill">
                         <i class="bi bi-lightning-fill text-warning me-2"></i>
                         <span>Instant Download</span>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <div class="stat-pill">
+                        <i class="bi bi-wifi-off text-success me-2"></i>
+                        <span>Works Offline</span>
                     </div>
                 </div>
             </div>
@@ -203,10 +221,20 @@
                                 <input type="checkbox" id="optCompress">
                                 <i class="bi bi-file-zip"></i><span>Compress</span>
                             </label>
+
+                            <!-- Clean for Sharing -->
+                            <label class="output-chip" title="Strips all metadata (author, dates, software info) before download">
+                                <input type="checkbox" id="optClean">
+                                <i class="bi bi-eraser-fill"></i><span>Clean PDF</span>
+                            </label>
                         </div>
 
                         <!-- Sticky Merge Bar -->
                         <div class="merge-bar" id="mergeBar">
+                            <!-- Progress bar (shown during processing) -->
+                            <div class="merge-progress-track" id="mergeProgressTrack">
+                                <div class="merge-progress-fill" id="mergeProgressFill"></div>
+                            </div>
                             <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                                 <div>
                                     <p class="merge-summary-title mb-1" id="selectionSummary">0 pages selected</p>
@@ -228,6 +256,10 @@
                                     <!-- Split button -->
                                     <button class="btn-split-lg" id="splitBtn" disabled>
                                         <i class="bi bi-scissors me-2"></i>Split Files
+                                    </button>
+                                    <!-- Merge + Compress one-click -->
+                                    <button class="btn-merge-compress" id="mergeCompressBtn" disabled title="Merge all files and compress to smallest size in one click">
+                                        <i class="bi bi-file-zip me-1"></i>Merge + Compress
                                     </button>
                                     <!-- Merge button -->
                                     <button class="btn-merge-lg" id="mergeBtn" disabled>
@@ -388,8 +420,8 @@
                         <div class="feature-icon feature-icon-green">
                             <i class="bi bi-shield-lock-fill"></i>
                         </div>
-                        <h5>100% Private</h5>
-                        <p>Everything runs in your browser. Your files never leave your computer — ever.</p>
+                        <h5>100% Private &amp; Offline</h5>
+                        <p>Everything runs in your browser. Files never leave your device - works offline after first visit.</p>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-3">
@@ -460,6 +492,15 @@
                 </span>
             </div>
 
+        </div>
+    </div>
+
+    <!-- Global Drop Overlay (shown when dragging files anywhere on page) -->
+    <div id="globalDropOverlay" class="global-drop-overlay" aria-hidden="true">
+        <div class="global-drop-inner">
+            <i class="bi bi-cloud-arrow-up-fill"></i>
+            <h3>Drop files anywhere</h3>
+            <p>PDF, JPG, PNG, SVG and 10+ formats supported</p>
         </div>
     </div>
 

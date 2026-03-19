@@ -8,6 +8,28 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // ===========================
+// Service Worker Registration
+// ===========================
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/pdf-merger/sw.js').then(reg => {
+            const activate = () => showSwBadge();
+            if (reg.active) { activate(); }
+            reg.addEventListener('updatefound', () => {
+                reg.installing?.addEventListener('statechange', e => {
+                    if (e.target.state === 'activated') activate();
+                });
+            });
+        }).catch(() => {});
+    });
+}
+
+function showSwBadge() {
+    const li = document.getElementById('swBadgeLi');
+    if (li) li.style.display = '';
+}
+
+// ===========================
 // State
 // ===========================
 let files = [];          // [{id, file, name, size, isImage, arrayBuffer}]
@@ -20,6 +42,8 @@ let fileRotations = {};  // {id: 0|90|180|270}
 let nextId = 0;
 let dragSrcId = null;
 let isDraggingFromHandle = false;
+let isFileDragging = false;
+let globalDragCounter = 0;
 
 const IMAGE_TYPES = new Set([
     'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp',
@@ -51,6 +75,8 @@ const wfStep2             = document.getElementById('wfStep2');
 const wfStep3             = document.getElementById('wfStep3');
 const wfLine1             = document.getElementById('wfLine1');
 const wfLine2             = document.getElementById('wfLine2');
+const globalDropOverlay   = document.getElementById('globalDropOverlay');
+const mergeCompressBtn    = document.getElementById('mergeCompressBtn');
 
 // Modal DOM
 const pageModal      = document.getElementById('pageModal');
@@ -77,17 +103,72 @@ fileInput.addEventListener('change', (e) => {
 dropZone.addEventListener('dragover', (e) => {
     e.preventDefault();
     dropZone.classList.add('drag-over');
+    hideDropOverlay(); // dropZone has its own visual — hide global overlay
 });
 
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('drag-over');
+    if (isFileDragging) showDropOverlay();
+});
 
 dropZone.addEventListener('drop', (e) => {
     e.preventDefault();
+    e.stopPropagation(); // prevent global handler from double-firing
     dropZone.classList.remove('drag-over');
+    globalDragCounter = 0;
+    isFileDragging = false;
+    hideDropOverlay();
     handleFiles(Array.from(e.dataTransfer.files));
 });
 
-// Reset drag state on global mouseup
+// ===========================
+// Global Drag & Drop (drop anywhere on page)
+// ===========================
+function showDropOverlay() { globalDropOverlay?.classList.add('visible'); }
+function hideDropOverlay() { globalDropOverlay?.classList.remove('visible'); }
+
+document.addEventListener('dragenter', e => {
+    const types = Array.from(e.dataTransfer?.types || []);
+    if (types.includes('Files')) {
+        isFileDragging = true;
+        globalDragCounter++;
+        showDropOverlay();
+    }
+});
+
+document.addEventListener('dragleave', e => {
+    if (!isFileDragging) return;
+    globalDragCounter--;
+    if (globalDragCounter <= 0) {
+        globalDragCounter = 0;
+        isFileDragging = false;
+        hideDropOverlay();
+    }
+});
+
+document.addEventListener('dragover', e => {
+    if (isFileDragging) e.preventDefault();
+});
+
+document.addEventListener('drop', e => {
+    if (!isFileDragging) return;
+    e.preventDefault();
+    globalDragCounter = 0;
+    isFileDragging = false;
+    hideDropOverlay();
+    // dropZone handles its own drop via stopPropagation — only handle drops elsewhere
+    if (!dropZone.contains(e.target)) {
+        handleFiles(Array.from(e.dataTransfer.files));
+    }
+});
+
+document.addEventListener('dragend', () => {
+    globalDragCounter = 0;
+    isFileDragging = false;
+    hideDropOverlay();
+});
+
+// Reset card drag state on global mouseup
 document.addEventListener('mouseup', () => {
     isDraggingFromHandle = false;
     document.querySelectorAll('.pdf-selector-card').forEach(c => { c.draggable = false; });
@@ -501,7 +582,8 @@ function updateMergeBar() {
     const hasContent = totalPages > 0;
     mergeBtn.disabled = !hasContent;
     splitBtn.disabled = !hasContent;
-    if (pdfToJpgBtn) pdfToJpgBtn.disabled = !hasContent;
+    if (pdfToJpgBtn)       pdfToJpgBtn.disabled       = !hasContent;
+    if (mergeCompressBtn)  mergeCompressBtn.disabled   = !hasContent;
 
     selectionSummary.textContent =
         `${totalPages} page${totalPages !== 1 ? 's' : ''} selected from ${files.length} file${files.length !== 1 ? 's' : ''}`;
@@ -516,6 +598,35 @@ function updateMergeBar() {
 function updateVisibility() {
     pageSelectorSection.style.display = files.length > 0 ? 'block' : 'none';
     updateMergeBar();
+}
+
+// ===========================
+// Progress Bar
+// ===========================
+function setMergeProgress(pct) {
+    const track = document.getElementById('mergeProgressTrack');
+    const fill  = document.getElementById('mergeProgressFill');
+    if (!track || !fill) return;
+    if (pct <= 0) {
+        track.style.display = 'none';
+        fill.style.width    = '0%';
+        return;
+    }
+    track.style.display = 'block';
+    fill.style.width    = Math.min(pct, 100) + '%';
+    if (pct >= 100) setTimeout(() => setMergeProgress(0), 800);
+}
+
+// ===========================
+// Clean PDF (strip metadata)
+// ===========================
+function cleanPdf(pdf) {
+    pdf.setTitle('');
+    pdf.setAuthor('');
+    pdf.setSubject('');
+    pdf.setKeywords([]);
+    pdf.setCreator('PDFMerge');
+    pdf.setProducer('PDFMerge');
 }
 
 // ===========================
@@ -554,6 +665,7 @@ function getFilename(suffix) {
 function getOptCompress()   { return document.getElementById('optCompress')?.checked || false; }
 function getOptPageNumbers(){ return document.getElementById('optPageNumbers')?.checked || false; }
 function getOptWatermark()  { return (document.getElementById('optWatermarkText')?.value || '').trim(); }
+function getOptClean()      { return document.getElementById('optClean')?.checked || false; }
 
 // ===========================
 // Output Options: Page Numbers
@@ -701,51 +813,78 @@ async function addFileToPdf(mergedPdf, fileObj, selectedPageNums, compress = fal
 // ===========================
 // Merge & Download
 // ===========================
-mergeBtn.addEventListener('click', async () => {
+async function runMerge(forceCompress = false) {
     const totalSelected = files.reduce((s, f) => s + (pageSelections[f.id]?.size || 0), 0);
     if (totalSelected === 0) return;
 
-    const compress  = getOptCompress();
+    const compress  = forceCompress || getOptCompress();
     const pageNums  = getOptPageNumbers();
     const watermark = getOptWatermark();
+    const clean     = getOptClean();
     const isSingle  = files.length <= 1;
 
     const originalHtml = isSingle
         ? `<i class="bi bi-download me-2"></i>Download`
         : `<i class="bi bi-file-earmark-zip me-2"></i>Merge &amp; Download`;
 
+    const toProcess = files.filter(f => (pageSelections[f.id]?.size || 0) > 0);
+
     setAllBtnsDisabled(true);
-    mergeBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>${isSingle ? 'Saving...' : 'Merging...'}`;
+    setMergeProgress(5);
 
     try {
         const mergedPdf = await PDFLib.PDFDocument.create();
+        let processed = 0;
+
         for (const fileObj of files) {
             const sel = pageSelections[fileObj.id];
             if (!sel || sel.size === 0) continue;
+            const label = toProcess.length > 1 ? ` ${processed + 1}/${toProcess.length}` : '';
+            mergeBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>${isSingle ? 'Saving' : 'Processing'}${label}...`;
             await addFileToPdf(mergedPdf, fileObj, sel, compress);
+            processed++;
+            setMergeProgress(10 + Math.round((processed / toProcess.length) * 70));
         }
         if (mergedPdf.getPageCount() === 0) throw new Error('No pages selected');
 
+        mergeBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>Finishing...`;
+        setMergeProgress(85);
+
         if (pageNums)  await applyPageNumbers(mergedPdf);
         if (watermark) await applyWatermark(mergedPdf, watermark);
+        if (clean)     cleanPdf(mergedPdf);
 
-        downloadPdf(await mergedPdf.save(), getFilename());
+        setMergeProgress(95);
+        mergeBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>Saving...`;
+        const pdfBytes = await mergedPdf.save();
 
+        setMergeProgress(100);
+        downloadPdf(pdfBytes, getFilename());
+
+        const outputSize = formatSize(pdfBytes.length);
         wfStep3.classList.add('active'); wfLine2.classList.add('active');
-        mergeBtn.innerHTML = `<i class="bi bi-check-circle-fill me-2"></i>Downloaded!`;
+        mergeBtn.innerHTML = `<i class="bi bi-check-circle-fill me-2"></i>Downloaded! &middot; ${outputSize}`;
         mergeBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
         setTimeout(() => {
             mergeBtn.innerHTML = originalHtml;
             mergeBtn.style.background = '';
             setAllBtnsDisabled(false);
-        }, 3000);
+        }, 3500);
 
     } catch (err) {
+        setMergeProgress(0);
         alert('Error: ' + (err.message || String(err)));
         mergeBtn.innerHTML = originalHtml;
         setAllBtnsDisabled(false);
     }
-});
+}
+
+mergeBtn.addEventListener('click', () => runMerge(false));
+
+// Merge + Compress one-click
+if (mergeCompressBtn) {
+    mergeCompressBtn.addEventListener('click', () => runMerge(true));
+}
 
 // ===========================
 // Split & Download
@@ -757,10 +896,11 @@ splitBtn.addEventListener('click', async () => {
     const compress  = getOptCompress();
     const pageNums  = getOptPageNumbers();
     const watermark = getOptWatermark();
+    const clean     = getOptClean();
     const origHtml  = splitBtn.innerHTML;
 
     setAllBtnsDisabled(true);
-    splitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>Splitting...`;
+    setMergeProgress(5);
 
     try {
         for (let i = 0; i < toSplit.length; i++) {
@@ -768,18 +908,23 @@ splitBtn.addEventListener('click', async () => {
             const sel = pageSelections[fileObj.id];
             if (!sel || sel.size === 0) continue;
 
+            splitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>File ${i + 1}/${toSplit.length}...`;
+            setMergeProgress(10 + Math.round(((i + 0.5) / toSplit.length) * 80));
+
             const singlePdf = await PDFLib.PDFDocument.create();
             await addFileToPdf(singlePdf, fileObj, sel, compress);
             if (singlePdf.getPageCount() === 0) continue;
 
             if (pageNums)  await applyPageNumbers(singlePdf);
             if (watermark) await applyWatermark(singlePdf, watermark);
+            if (clean)     cleanPdf(singlePdf);
 
             const baseName = fileObj.name.replace(/\.[^/.]+$/, '');
             downloadPdf(await singlePdf.save(), getFilename(baseName));
             if (i < toSplit.length - 1) await delay(600);
         }
 
+        setMergeProgress(100);
         splitBtn.innerHTML = `<i class="bi bi-check-circle-fill me-2"></i>Split Done!`;
         splitBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
         setTimeout(() => {
@@ -789,6 +934,7 @@ splitBtn.addEventListener('click', async () => {
         }, 3000);
 
     } catch (err) {
+        setMergeProgress(0);
         alert('Split error: ' + (err.message || String(err)));
         splitBtn.innerHTML = origHtml;
         setAllBtnsDisabled(false);
@@ -816,6 +962,7 @@ if (pdfToJpgBtn) {
 
         const origHtml = pdfToJpgBtn.innerHTML;
         setAllBtnsDisabled(true);
+        setMergeProgress(5);
         pdfToJpgBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>Exporting...`;
 
         try {
@@ -853,9 +1000,11 @@ if (pdfToJpgBtn) {
                 }
 
                 downloadBlob(jpgBytes, filename, 'image/jpeg');
+                setMergeProgress(10 + Math.round(((i + 1) / jobs.length) * 85));
                 if (i < jobs.length - 1) await delay(600);
             }
 
+            setMergeProgress(100);
             pdfToJpgBtn.innerHTML = `<i class="bi bi-check-circle-fill me-2"></i>Exported!`;
             pdfToJpgBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
             setTimeout(() => {
@@ -865,6 +1014,7 @@ if (pdfToJpgBtn) {
             }, 3000);
 
         } catch (err) {
+            setMergeProgress(0);
             alert('Export error: ' + (err.message || String(err)));
             pdfToJpgBtn.innerHTML = origHtml;
             setAllBtnsDisabled(false);
@@ -879,7 +1029,8 @@ function setAllBtnsDisabled(disabled) {
     const hasContent = !disabled && files.some(f => (pageSelections[f.id]?.size || 0) > 0);
     mergeBtn.disabled = disabled ? true : !hasContent;
     splitBtn.disabled = disabled ? true : !hasContent;
-    if (pdfToJpgBtn) pdfToJpgBtn.disabled = disabled ? true : !hasContent;
+    if (pdfToJpgBtn)      pdfToJpgBtn.disabled      = disabled ? true : !hasContent;
+    if (mergeCompressBtn) mergeCompressBtn.disabled  = disabled ? true : !hasContent;
 }
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }

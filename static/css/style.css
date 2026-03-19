@@ -1536,3 +1536,130 @@ a { text-decoration: none; color: inherit; }
     .btn-merge-lg, .btn-split-lg, .btn-pdf-to-jpg-lg { font-size: 0.82rem; }
     .merge-filename-wrap { flex-shrink: 0; }
 }
+
+/* ===========================
+   Global Drop Overlay
+=========================== */
+.global-drop-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(99, 102, 241, 0.12);
+    border: 3px dashed rgba(99, 102, 241, 0.55);
+    z-index: 9990;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.global-drop-overlay.visible { opacity: 1; }
+
+.global-drop-inner {
+    text-align: center;
+    pointer-events: none;
+}
+
+.global-drop-inner i {
+    font-size: 4rem;
+    color: var(--primary-light);
+    display: block;
+    margin-bottom: 1rem;
+    filter: drop-shadow(0 0 24px rgba(99, 102, 241, 0.9));
+    animation: drop-bounce 1s ease infinite;
+}
+
+.global-drop-inner h3 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+    margin-bottom: 0.4rem;
+    text-shadow: 0 2px 20px rgba(0,0,0,0.6);
+}
+
+.global-drop-inner p {
+    color: rgba(255,255,255,0.65);
+    font-size: 0.95rem;
+}
+
+@keyframes drop-bounce {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-10px); }
+}
+
+/* ===========================
+   Merge Progress Bar
+=========================== */
+.merge-progress-track {
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+    display: none;
+    margin-bottom: 0.9rem;
+}
+
+.merge-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary) 0%, #8b5cf6 50%, var(--success) 100%);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===========================
+   Offline Ready Badge (navbar)
+=========================== */
+.sw-offline-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.28rem 0.8rem;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 50px;
+    color: #34d399;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* ===========================
+   Merge + Compress Button
+=========================== */
+.btn-merge-compress {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.6rem 1.2rem;
+    background: transparent;
+    border: 1.5px solid rgba(245, 158, 11, 0.45);
+    color: #fbbf24;
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+    font-family: 'Inter', sans-serif;
+}
+
+.btn-merge-compress:hover:not(:disabled) {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: #f59e0b;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.2);
+}
+
+.btn-merge-compress:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Mobile: full-width stack for new buttons */
+@media (max-width: 430px) {
+    .btn-merge-compress {
+        width: 100%;
+        justify-content: center;
+        padding: 0.6rem 1rem;
+        font-size: 0.82rem;
+    }
+}
